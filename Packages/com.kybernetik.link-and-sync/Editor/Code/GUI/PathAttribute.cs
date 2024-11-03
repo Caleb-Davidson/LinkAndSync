@@ -1,6 +1,7 @@
 ﻿// Link & Sync // Copyright 2023 Kybernetik //
 
 using System.IO;
+using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
@@ -85,12 +86,35 @@ namespace LinkAndSync
             if (Path.IsPathRooted(path))
                 directoryPath = LasUtilities.RelativeToAbsolute(directoryPath);
 
-            if (!path.StartsWith(directoryPath) ||
-                path.Length <= directoryPath.Length + 1)
-                return false;
-
-            path = path.Substring(directoryPath.Length + 1);
-            return true;
+            if (path.StartsWith(directoryPath)) 
+            {
+                path = path.Substring(directoryPath.Length + 1);
+                return true;
+            }
+            
+            var linkAndSyncObject = property.serializedObject.targetObject as LinkAndSync;
+            if (linkAndSyncObject != null)
+            {
+                foreach (var externalDirectory in linkAndSyncObject.ExternalDirectories.Select(LasUtilities.RelativeToAbsolute).Select(LasUtilities.NormalizeSlashes)) {
+                    if (path.StartsWith(externalDirectory)) 
+                    {
+                        path = path.Substring(externalDirectory.Length + 1);
+                        return true;
+                    }
+                    
+                    if (File.Exists(Path.Combine(externalDirectory, path))) 
+                    {
+                        return true;
+                    }
+                    
+                    if (Directory.Exists(Path.Combine(externalDirectory, path))) 
+                    {
+                        return true;
+                    }
+                }
+            }
+            
+            return false;
         }
 
         /************************************************************************************************************************/
@@ -211,7 +235,6 @@ namespace LinkAndSync
                     return null;
 
                 var draggedPath = DragAndDrop.paths[0];
-                var originalDraggedPath = draggedPath;
 
                 if (!Attribute.Validate(property, ref draggedPath))
                     return null;
@@ -225,7 +248,7 @@ namespace LinkAndSync
                 else// Drop.
                 {
                     GUI.changed = true;
-                    return LasUtilities.AbsoluteToRelative(originalDraggedPath);
+                    return LasUtilities.AbsoluteToRelative(draggedPath);
                 }
             }
 
